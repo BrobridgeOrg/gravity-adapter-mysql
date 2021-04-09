@@ -1,0 +1,23 @@
+{
+	"sources": {
+		"mysql_example": {
+			"disabled": false,
+			"host": "192.168.1.195",
+			"port": 3306,
+			"username": "username",
+			"password": "password",
+			"dbname": "gravity",
+			"initialLoad": false,
+			"tables": {
+				"users":{
+					"events": {
+						"snapshot": "accountInitialzed",
+						"create": "accountCreated",
+						"update": "accountUpdated",
+						"delete": "accountDeleted"
+					}
+				}
+			}
+		}
+	}
+}
