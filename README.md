@@ -24,7 +24,7 @@ mysql> show variables like 'binlog_format';
 
 ```
 
-### Enable binlog 
+### Enable binlog MySQL 8.0
 ``` bash
 vim /etc/mysql/mysql.conf.d/mysqld.cnf
 
@@ -33,4 +33,16 @@ vim /etc/mysql/mysql.conf.d/mysqld.cnf
 log-bin=/var/lib/mysql/binlog
 binlog-format=row
 
+```
+
+### Enable binlog MySQL 5.7
+``` bash
+vim /etc/mysql/mysql.conf.d/mysqld.cnf
+
+[mysqld]
+...
+server-id=1
+log-bin=/var/lib/mysql/mysql-bin.log
+binlog-format=row
+max_allowed_packet=100M
 ```
