@@ -2,7 +2,7 @@ package adapter
 
 import (
 	"sync"
-	"sync/atomic"
+	//"sync/atomic"
 	"unsafe"
 
 	"github.com/BrobridgeOrg/broton"
@@ -31,6 +31,7 @@ type Source struct {
 	name      string
 	parser    *parallel_chunked_flow.ParallelChunkedFlow
 	tables    map[string]SourceTable
+	mu        sync.Mutex
 }
 
 type Request struct {
@@ -94,13 +95,16 @@ func NewSource(adapter *Adapter, name string, sourceInfo *SourceInfo) *Source {
 		ChunkSize:  512,
 		ChunkCount: 512,
 		Handler: func(data interface{}, output func(interface{})) {
-			id := atomic.AddUint64((*uint64)(&counter), 1)
-			if id%100 == 0 {
-				log.Info(id)
-			}
+			/*
+				id := atomic.AddUint64((*uint64)(&counter), 1)
+				if id%100 == 0 {
+					log.Info(id)
+				}
+			*/
 
 			req := source.prepareRequest(data.(*CDCEvent))
 			if req == nil {
+				log.Error("req in nil")
 				return
 			}
 
@@ -249,6 +253,7 @@ func (source *Source) requestHandler() {
 		case req := <-source.parser.Output():
 			// TODO: retry
 			if req == nil {
+				log.Error("req in nil")
 				break
 			}
 			source.HandleRequest(req.(*Request))
@@ -259,6 +264,7 @@ func (source *Source) requestHandler() {
 
 func (source *Source) prepareRequest(event *CDCEvent) *Request {
 
+	source.mu.Lock()
 	// determine event name
 	eventName := source.parseEventName(event)
 	if eventName == "" {
@@ -294,6 +300,7 @@ func (source *Source) prepareRequest(event *CDCEvent) *Request {
 		Payload:   payload,
 	}
 
+	source.mu.Unlock()
 	return request
 }
 
