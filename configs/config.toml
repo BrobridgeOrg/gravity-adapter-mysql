@@ -1,9 +1,17 @@
-[dsa]
-host = "0.0.0.0:44444"
+[gravity]
+host = "0.0.0.0"
+port = 4222
+pingInterval = 10
+maxPingsOutstanding = 3
+maxReconnects = -1
+
+[adapter]
+adapter_id = "mysql_adapter"
+adapter_name = "MySQL Adapter"
 
 [source]
 config = "./settings/sources.json"
 
 [store]
 enabled = true
-path = "./store"
+path = "./statestore"

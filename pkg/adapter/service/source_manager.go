@@ -72,7 +72,7 @@ func (sm *SourceManager) Initialize() error {
 		err := source.Init()
 		if err != nil {
 			log.Error(err)
-			continue
+			return err
 		}
 
 		sm.sources[name] = source

@@ -3,7 +3,7 @@ package adapter
 import (
 	//"fmt"
 	parser "git.brobridge.com/gravity/gravity-adapter-mysql/pkg/adapter/service/parser"
-	"github.com/siddontang/go-mysql/canal"
+	"github.com/go-mysql-org/go-mysql/canal"
 	"sync"
 	//"github.com/siddontang/go-mysql/mysql"
 	//"github.com/siddontang/go-mysql/schema"

@@ -3,10 +3,10 @@ package adapter
 import (
 	"sync"
 	//"sync/atomic"
+	"time"
 	"unsafe"
 
 	"github.com/BrobridgeOrg/broton"
-	dsa "github.com/BrobridgeOrg/gravity-api/service/dsa"
 	"github.com/spf13/viper"
 
 	gravity_adapter "github.com/BrobridgeOrg/gravity-sdk/adapter"
@@ -17,8 +17,8 @@ import (
 var counter uint64
 
 type Packet struct {
-	EventName string      `json:"event"`
-	Payload   interface{} `json:"payload"`
+	EventName string
+	Payload   []byte
 }
 
 type Source struct {
@@ -37,7 +37,7 @@ type Source struct {
 type Request struct {
 	Pos     uint32
 	PosName string
-	Req     *dsa.PublishRequest
+	Req     *Packet
 	Table   string
 }
 
@@ -79,14 +79,13 @@ func NewSource(adapter *Adapter, name string, sourceInfo *SourceInfo) *Source {
 	}
 
 	source := &Source{
-		adapter:   adapter,
-		info:      sourceInfo,
-		store:     nil,
-		database:  NewDatabase(),
-		connector: gravity_adapter.NewAdapterConnector(),
-		incoming:  make(chan *CDCEvent, 204800),
-		name:      name,
-		tables:    tables,
+		adapter:  adapter,
+		info:     sourceInfo,
+		store:    nil,
+		database: NewDatabase(),
+		incoming: make(chan *CDCEvent, 204800),
+		name:     name,
+		tables:   tables,
 	}
 
 	// Initialize parapllel chunked flow
@@ -124,7 +123,6 @@ func (source *Source) parseEventName(event *CDCEvent) string {
 	// determine event name
 	tableInfo, ok := source.tables[event.Table]
 	if !ok {
-		log.Error("determine event name")
 		return eventName
 	}
 
@@ -218,7 +216,6 @@ func (source *Source) Init() error {
 
 		// filter
 		if eventName == "" {
-			log.Error("eventName is empty")
 			return
 		}
 
@@ -295,7 +292,7 @@ func (source *Source) prepareRequest(event *CDCEvent) *Request {
 	request.Pos = event.Pos
 	request.Table = event.Table
 
-	request.Req = &dsa.PublishRequest{
+	request.Req = &Packet{
 		EventName: eventName,
 		Payload:   payload,
 	}
@@ -306,26 +303,43 @@ func (source *Source) prepareRequest(event *CDCEvent) *Request {
 
 func (source *Source) HandleRequest(request *Request) {
 
-	// Using new SDK to re-implement this part
-	err := source.connector.Publish(request.Req.EventName, request.Req.Payload, nil)
-	if err != nil {
-		log.Error("Failed to get publish Request:", err)
-		return
+	for {
+		// Using new SDK to re-implement this part
+		err := source.connector.Publish(request.Req.EventName, request.Req.Payload, nil)
+		if err != nil {
+			log.Error("Failed to get publish Request:", err)
+			time.Sleep(time.Second)
+			//return
+			continue
+		}
+
+		/*
+			id := atomic.AddUint64((*uint64)(&counter), 1)
+			if id%1000 == 0 {
+				log.Info(id)
+			}
+		*/
+		break
 	}
 
 	if source.store == nil {
 		return
 	}
 
-	err = source.store.PutUint64("status", []byte("POS"), uint64(request.Pos))
-	if err != nil {
-		log.Error("Failed to update Position Name")
-		return
-	}
+	for {
+		err := source.store.PutUint64("status", []byte("POS"), uint64(request.Pos))
+		if err != nil {
+			log.Error("Failed to update Position Name")
+			time.Sleep(time.Second)
+			continue
+		}
 
-	err = source.store.PutString("status", []byte("POSNAME"), request.PosName)
-	if err != nil {
-		log.Error("Failed to update Position")
-		return
+		err = source.store.PutString("status", []byte("POSNAME"), request.PosName)
+		if err != nil {
+			log.Error("Failed to update Position")
+			time.Sleep(time.Second)
+			continue
+		}
+		break
 	}
 }

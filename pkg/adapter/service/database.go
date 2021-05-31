@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/siddontang/go-mysql/canal"
-	"github.com/siddontang/go-mysql/mysql"
+	"github.com/go-mysql-org/go-mysql/canal"
+	"github.com/go-mysql-org/go-mysql/mysql"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -62,7 +62,8 @@ func (database *Database) Connect(info *SourceInfo) error {
 	c, err := canal.NewCanal(cfg)
 	if err != nil {
 		log.Error(err)
-		return err
+		<-time.After(1 * time.Second)
+		return database.Connect(info)
 	}
 
 	database.canal = c
