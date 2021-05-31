@@ -116,6 +116,9 @@ func (h *binlogHandler) OnRow(e *canal.RowsEvent) error {
 			result.PosName = pos.Name
 			result.Pos = pos.Pos
 			h.fn(&result)
+
+			timer := time.NewTimer(50 * time.Microsecond)
+			<-timer.C
 			break
 
 		}
