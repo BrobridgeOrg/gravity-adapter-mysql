@@ -3,13 +3,13 @@ module git.brobridge.com/gravity/gravity-adapter-mysql
 go 1.15
 
 require (
-	github.com/BrobridgeOrg/broton v0.0.2
-	github.com/BrobridgeOrg/gravity-sdk v0.0.12
+	github.com/BrobridgeOrg/broton v0.0.5
+	github.com/BrobridgeOrg/gravity-sdk v0.0.17
 	github.com/cfsghost/parallel-chunked-flow v0.0.6
 	github.com/go-mysql-org/go-mysql v1.2.1
 	github.com/json-iterator/go v1.1.10
 	github.com/pkg/errors v0.9.1
-	github.com/sirupsen/logrus v1.7.0
+	github.com/sirupsen/logrus v1.8.1
 	github.com/spf13/viper v1.7.1
 )
 
