@@ -11,7 +11,7 @@
 			"tables": {
 				"users":{
 					"events": {
-						"snapshot": "accountInitialzed",
+						"snapshot": "accountInitialized",
 						"create": "accountCreated",
 						"update": "accountUpdated",
 						"delete": "accountDeleted"
