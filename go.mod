@@ -3,7 +3,7 @@ module git.brobridge.com/gravity/gravity-adapter-mysql
 go 1.15
 
 require (
-	github.com/BrobridgeOrg/broton v0.0.5
+	github.com/BrobridgeOrg/broton v0.0.7
 	github.com/BrobridgeOrg/gravity-sdk v0.0.19
 	github.com/cfsghost/parallel-chunked-flow v0.0.6
 	github.com/go-mysql-org/go-mysql v1.2.1

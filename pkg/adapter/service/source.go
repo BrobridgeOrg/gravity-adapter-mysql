@@ -160,29 +160,28 @@ func (source *Source) Init() error {
 		var lastPos uint64 = 0
 		var lastPosName string = ""
 
+		// Register columns
+		columns := []string{"status"}
+		err = source.store.RegisterColumns(columns)
+		if err != nil {
+			log.Error(err)
+			return err
+		}
+
 		// Getting last Position Name
 		lastPosName, err = source.store.GetString("status", []byte("POSNAME"))
 		if err != nil {
-			log.Error(err, " register column and continue ...")
-			columns := []string{"status"}
-			err := source.store.RegisterColumns(columns)
-			if err != nil {
-				log.Error(err)
-				return err
-			}
+			log.Error(err)
+			return err
 		}
 
 		// Getting last Position
 		lastPos, err = source.store.GetUint64("status", []byte("POS"))
 		if err != nil {
-			log.Error(err, " register column and continue ...")
-			columns := []string{"status"}
-			err := source.store.RegisterColumns(columns)
-			if err != nil {
-				log.Error(err)
-				return err
-			}
+			log.Error(err)
+			return err
 		}
+
 		source.database.lastPosName = lastPosName
 		source.database.lastPos = uint32(lastPos)
 
@@ -329,14 +328,14 @@ func (source *Source) HandleRequest(request *Request) {
 	for {
 		err := source.store.PutUint64("status", []byte("POS"), uint64(request.Pos))
 		if err != nil {
-			log.Error("Failed to update Position Name")
+			log.Error("Failed to update Position")
 			time.Sleep(time.Second)
 			continue
 		}
 
 		err = source.store.PutString("status", []byte("POSNAME"), request.PosName)
 		if err != nil {
-			log.Error("Failed to update Position")
+			log.Error("Failed to update Position Name")
 			time.Sleep(time.Second)
 			continue
 		}
