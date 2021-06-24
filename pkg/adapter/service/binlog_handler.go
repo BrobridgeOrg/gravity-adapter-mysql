@@ -34,6 +34,33 @@ func (h *binlogHandler) OnRow(e *canal.RowsEvent) error {
 
 		h.mu.Lock()
 
+		if e.Header == nil {
+			result = CDCEvent{}
+			for seq, rowData := range row {
+				afterValue[columns[seq]] = &parser.Value{
+					Data: rowData,
+				}
+			}
+
+			result = CDCEvent{
+				Operation: SnapshotOperation,
+				Table:     e.Table.Name,
+				After:     afterValue,
+				Before:    beforeValue,
+			}
+
+			pos, _ := h.canal.GetMasterPos()
+			result.PosName = pos.Name
+			result.Pos = pos.Pos
+			h.fn(&result)
+
+			timer := time.NewTimer(50 * time.Microsecond)
+			<-timer.C
+
+			h.mu.Unlock()
+			continue
+		}
+
 		// Prepare CDC event
 		switch e.Action {
 		case canal.DeleteAction:
@@ -121,30 +148,6 @@ func (h *binlogHandler) OnRow(e *canal.RowsEvent) error {
 			<-timer.C
 			break
 
-		}
-
-		if e.Header == nil {
-			result = CDCEvent{}
-			for seq, rowData := range row {
-				afterValue[columns[seq]] = &parser.Value{
-					Data: rowData,
-				}
-			}
-
-			result = CDCEvent{
-				Operation: SnapshotOperation,
-				Table:     e.Table.Name,
-				After:     afterValue,
-				Before:    beforeValue,
-			}
-
-			pos, _ := h.canal.GetMasterPos()
-			result.PosName = pos.Name
-			result.Pos = pos.Pos
-			h.fn(&result)
-
-			timer := time.NewTimer(50 * time.Microsecond)
-			<-timer.C
 		}
 
 		h.mu.Unlock()
