@@ -7,8 +7,8 @@ maxPingsOutstanding = 3
 maxReconnects = -1
 
 [adapter]
-adapter_id = "mysql_adapter"
-adapter_name = "MySQL Adapter"
+adapterID = "mysql_adapter"
+adapterName = "MySQL Adapter"
 
 [source]
 config = "./settings/sources.json"
