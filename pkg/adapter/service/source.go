@@ -1,7 +1,9 @@
 package adapter
 
 import (
+	"fmt"
 	"sync"
+
 	//"sync/atomic"
 	"time"
 	"unsafe"
@@ -304,7 +306,9 @@ func (source *Source) HandleRequest(request *Request) {
 
 	for {
 		// Using new SDK to re-implement this part
-		err := source.connector.Publish(request.Req.EventName, request.Req.Payload, nil)
+		meta := make(map[string]interface{})
+		meta["Msg-Id"] = fmt.Sprintf("%s-%s-%s", source.name, request.Table, request.Pos)
+		err := source.connector.Publish(request.Req.EventName, request.Req.Payload, meta)
 		if err != nil {
 			log.Error("Failed to get publish Request:", err)
 			time.Sleep(time.Second)
@@ -320,6 +324,8 @@ func (source *Source) HandleRequest(request *Request) {
 		*/
 		break
 	}
+
+	<-source.connector.PublishComplete()
 
 	if source.store == nil {
 		return
