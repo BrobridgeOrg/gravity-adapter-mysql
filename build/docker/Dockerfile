@@ -6,8 +6,10 @@ WORKDIR /
 COPY . .
 
 RUN apk add --update build-base git openssh && apk upgrade --available
+
 RUN go build -ldflags "-X git.brobridge.com/gravity/gravity-adapter-mysql/pkg/adapter/service.aesKey=$AES_KEY" -o /gravity-adapter-mysql ./cmd/gravity-adapter-mysql/gravity-adapter-mysql.go
 
+RUN mkdir -p -m 0700 ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
 RUN git config --global url."git@github.com:BrobridgeOrg/pwd-encrypt".insteadOf "https://github.com/BrobridgeOrg/pwd-encrypt"
 RUN --mount=type=ssh GOPRIVATE=github.com/BrobridgeOrg/pwd-encrypt go install -ldflags "-X main.aesKey=$AES_KEY" github.com/BrobridgeOrg/pwd-encrypt@latest
 
