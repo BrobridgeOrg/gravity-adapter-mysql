@@ -5,6 +5,6 @@ type Parser struct {
 	sqlStrState string
 	Operation   string
 	Table       string
-	BeforeData  map[string]*Value
-	AfterData   map[string]*Value
+	BeforeData  map[string]interface{}
+	AfterData   map[string]interface{}
 }

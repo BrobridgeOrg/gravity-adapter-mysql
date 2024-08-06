@@ -3,6 +3,7 @@ package adapter
 import (
 	"fmt"
 	"sync"
+	"sync/atomic"
 
 	//"sync/atomic"
 	"time"
@@ -11,7 +12,7 @@ import (
 	"github.com/BrobridgeOrg/broton"
 	"github.com/spf13/viper"
 
-	gravity_adapter "github.com/BrobridgeOrg/gravity-sdk/adapter"
+	gravity_adapter "github.com/BrobridgeOrg/gravity-sdk/v2/adapter"
 	parallel_chunked_flow "github.com/cfsghost/parallel-chunked-flow"
 	log "github.com/sirupsen/logrus"
 )
@@ -29,18 +30,21 @@ type Source struct {
 	store     *broton.Store
 	database  *Database
 	connector *gravity_adapter.AdapterConnector
-	incoming  chan *CDCEvent
+	incoming  chan *Request
 	name      string
 	parser    *parallel_chunked_flow.ParallelChunkedFlow
 	tables    map[string]SourceTable
+	stopping  bool
 	mu        sync.Mutex
 }
 
 type Request struct {
-	Pos     uint32
-	PosName string
-	Req     *Packet
-	Table   string
+	Pos       uint32
+	PosName   string
+	Req       *Packet
+	Table     string
+	Operation OperationType
+	EventPKs  string
 }
 
 var requestPool = sync.Pool{
@@ -85,9 +89,10 @@ func NewSource(adapter *Adapter, name string, sourceInfo *SourceInfo) *Source {
 		info:     sourceInfo,
 		store:    nil,
 		database: NewDatabase(),
-		incoming: make(chan *CDCEvent, 204800),
+		incoming: make(chan *Request, 204800),
 		name:     name,
 		tables:   tables,
+		stopping: false,
 	}
 
 	// Initialize parapllel chunked flow
@@ -96,26 +101,24 @@ func NewSource(adapter *Adapter, name string, sourceInfo *SourceInfo) *Source {
 		ChunkSize:  512,
 		ChunkCount: 512,
 		Handler: func(data interface{}, output func(interface{})) {
-			/*
-				id := atomic.AddUint64((*uint64)(&counter), 1)
-				if id%100 == 0 {
-					log.Info(id)
-				}
-			*/
-
-			req := source.prepareRequest(data.(*CDCEvent))
-			if req == nil {
-				log.Error("req in nil")
-				return
-			}
-
-			output(req)
+			output(data)
 		},
 	}
 
 	source.parser = parallel_chunked_flow.NewParallelChunkedFlow(&pcfOpts)
 
 	return source
+}
+
+func (source *Source) Uninit() error {
+	fmt.Println("Stopping ...")
+	source.stopping = true
+	source.database.Uninit()
+	time.Sleep(1 * time.Second)
+	<-source.connector.PublishAsyncComplete()
+	source.adapter.storeMgr.Close()
+	return nil
+
 }
 
 func (source *Source) parseEventName(event *CDCEvent) string {
@@ -171,17 +174,37 @@ func (source *Source) Init() error {
 		}
 
 		// Getting last Position Name
-		lastPosName, err = source.store.GetString("status", []byte("POSNAME"))
+		posnameCol := fmt.Sprintf("%s-POSNAME", source.name)
+		lastPosName, err = source.store.GetString("status", []byte(posnameCol))
 		if err != nil {
 			log.Error(err)
 			return err
 		}
 
 		// Getting last Position
-		lastPos, err = source.store.GetUint64("status", []byte("POS"))
+		posCol := fmt.Sprintf("%s-POS", source.name)
+		lastPos, err = source.store.GetUint64("status", []byte(posCol))
 		if err != nil {
 			log.Error(err)
 			return err
+		}
+		for tableName, _ := range source.tables {
+			// set  default values
+			var initialLoadStatus int64 = 0
+			initialLoadStatusCol := fmt.Sprintf("%s-%s-initialload", source.name, tableName)
+			initialLoadStatus, err = source.store.GetInt64("status", []byte(initialLoadStatusCol))
+			if err != nil {
+				log.Error(err)
+				return err
+			}
+
+			tableInfo := source.database.tableInfo[tableName]
+			if initialLoadStatus != 0 {
+				tableInfo.initialLoaded = true
+			} else {
+				tableInfo.initialLoaded = false
+			}
+			source.database.tableInfo[tableName] = tableInfo
 		}
 
 		source.database.lastPosName = lastPosName
@@ -193,7 +216,7 @@ func (source *Source) Init() error {
 	source.connector = source.adapter.app.GetAdapterConnector()
 
 	// Connect to database
-	err := source.database.Connect(source.info)
+	err := source.database.Connect(source)
 	if err != nil {
 		return err
 	}
@@ -211,20 +234,18 @@ func (source *Source) Init() error {
 		"tables": tables,
 	}).Info("Preparing to watch tables")
 
-	err = source.database.StartCDC(tables, source.info.InitialLoad, func(event *CDCEvent) {
-
-		eventName := source.parseEventName(event)
-
-		// filter
-		if eventName == "" {
-			return
+	go func(tables []string, initialLoad bool) {
+		err = source.database.StartCDC(tables, initialLoad, func(event *CDCEvent) {
+			req := source.prepareRequest(event)
+			if req == nil {
+				return
+			}
+			source.incoming <- req
+		})
+		if err != nil {
+			log.Fatal(err)
 		}
-
-		source.incoming <- event
-	})
-	if err != nil {
-		return err
-	}
+	}(tables, source.info.InitialLoad)
 
 	return nil
 }
@@ -251,7 +272,6 @@ func (source *Source) requestHandler() {
 		case req := <-source.parser.Output():
 			// TODO: retry
 			if req == nil {
-				log.Error("req in nil")
 				break
 			}
 			source.HandleRequest(req.(*Request))
@@ -262,7 +282,8 @@ func (source *Source) requestHandler() {
 
 func (source *Source) prepareRequest(event *CDCEvent) *Request {
 
-	source.mu.Lock()
+	//source.mu.Lock()
+	//defer source.mu.Unlock()
 	// determine event name
 	eventName := source.parseEventName(event)
 	if eventName == "" {
@@ -273,12 +294,12 @@ func (source *Source) prepareRequest(event *CDCEvent) *Request {
 	data := make(map[string]interface{}, len(event.Before)+len(event.After))
 	for k, v := range event.Before {
 
-		data[k] = v.Data
+		data[k] = v
 	}
 
 	for k, v := range event.After {
 
-		data[k] = v.Data
+		data[k] = v
 	}
 
 	payload, err := json.Marshal(data)
@@ -292,54 +313,61 @@ func (source *Source) prepareRequest(event *CDCEvent) *Request {
 	request.PosName = event.PosName
 	request.Pos = event.Pos
 	request.Table = event.Table
+	request.Operation = event.Operation
+	request.EventPKs = event.EventPKs
 
 	request.Req = &Packet{
 		EventName: eventName,
 		Payload:   payload,
 	}
 
-	source.mu.Unlock()
 	return request
 }
 
 func (source *Source) HandleRequest(request *Request) {
 
-	for {
-		// Using new SDK to re-implement this part
-		meta := make(map[string]interface{})
-		meta["Msg-Id"] = fmt.Sprintf("%s-%s-%s", source.name, request.Table, request.Pos)
-		err := source.connector.Publish(request.Req.EventName, request.Req.Payload, meta)
-		if err != nil {
-			log.Error("Failed to get publish Request:", err)
-			time.Sleep(time.Second)
-			//return
-			continue
-		}
-
-		/*
-			id := atomic.AddUint64((*uint64)(&counter), 1)
-			if id%1000 == 0 {
-				log.Info(id)
-			}
-		*/
-		break
-	}
-
-	<-source.connector.PublishComplete()
-
-	if source.store == nil {
+	if source.stopping {
+		time.Sleep(time.Second)
 		return
 	}
 
 	for {
-		err := source.store.PutUint64("status", []byte("POS"), uint64(request.Pos))
+		// Using new SDK to re-implement this part
+		meta := make(map[string]string)
+		if request.Operation != SnapshotOperation {
+			meta["Nats-Msg-Id"] = fmt.Sprintf("%s-%s-%s", source.name, request.Table, request.EventPKs)
+		} else {
+			meta["Nats-Msg-Id"] = fmt.Sprintf("%s-%s-%d-snapshot", source.name, request.Table, request.Pos)
+		}
+		_, err := source.connector.PublishAsync(request.Req.EventName, request.Req.Payload, meta)
+		if err != nil {
+			log.Error("Failed to get publish Request:", err)
+			log.Debug("EventName: ", request.Req.EventName, " Payload: ", string(request.Req.Payload))
+			time.Sleep(time.Second)
+			//return
+			continue
+		}
+		log.Trace("MsgId: ", meta["Nats-Msg-Id"])
+		log.Debug("EventName: ", request.Req.EventName)
+		log.Trace("Payload: ", string(request.Req.Payload))
+		break
+	}
+
+	if source.store == nil || request.Operation == SnapshotOperation {
+		return
+	}
+
+	for {
+		posCol := fmt.Sprintf("%s-POS", source.name)
+		err := source.store.PutUint64("status", []byte(posCol), uint64(request.Pos))
 		if err != nil {
 			log.Error("Failed to update Position")
 			time.Sleep(time.Second)
 			continue
 		}
 
-		err = source.store.PutString("status", []byte("POSNAME"), request.PosName)
+		posnameCol := fmt.Sprintf("%s-POSNAME", source.name)
+		err = source.store.PutString("status", []byte(posnameCol), request.PosName)
 		if err != nil {
 			log.Error("Failed to update Position Name")
 			time.Sleep(time.Second)
@@ -347,4 +375,11 @@ func (source *Source) HandleRequest(request *Request) {
 		}
 		break
 	}
+
+	id := atomic.AddUint64((*uint64)(&counter), 1)
+	if id%10000 == 0 {
+		<-source.connector.PublishAsyncComplete()
+		counter = 0
+	}
+
 }

@@ -1,8 +1,10 @@
 package adapter
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
@@ -68,6 +70,18 @@ func (sm *SourceManager) Initialize() error {
 			//"mode": info.Mode,
 		}).Info("Initializing source")
 
+		pwdFromEnvKey := fmt.Sprintf("%s_PASSWORD", strings.ToUpper(name))
+		pwdFromEnvValue := os.Getenv(pwdFromEnvKey)
+		if pwdFromEnvValue != "" {
+			pwd, err := AesDecrypt(pwdFromEnvValue)
+			if err != nil {
+				log.Error(err)
+				return err
+			}
+
+			info.Password = pwd
+		}
+
 		source := NewSource(sm.adapter, name, &info)
 		err := source.Init()
 		if err != nil {
@@ -78,6 +92,22 @@ func (sm *SourceManager) Initialize() error {
 		sm.sources[name] = source
 	}
 
+	return nil
+}
+
+func (sm *SourceManager) Uninit() error {
+	// Loading configuration file
+	config, err := sm.LoadSourceConfig(viper.GetString("source.config"))
+	if err != nil {
+		return err
+	}
+
+	// Initializing sources
+	for name, _ := range config.Sources {
+		if source, ok := sm.sources[name]; ok {
+			source.Uninit()
+		}
+	}
 	return nil
 }
 

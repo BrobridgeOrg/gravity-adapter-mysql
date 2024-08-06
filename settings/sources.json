@@ -2,14 +2,14 @@
 	"sources": {
 		"mysql_example": {
 			"disabled": false,
-			"host": "192.168.1.195",
+			"host": "192.168.8.227",
 			"port": 3306,
-			"username": "username",
-			"password": "password",
+			"username": "root",
+			"password": "1qaz@WSXROOT",
 			"dbname": "gravity",
-			"initialLoad": false,
+			"initialLoad": true,
 			"tables": {
-				"users":{
+				"account":{
 					"events": {
 						"snapshot": "accountInitialized",
 						"create": "accountCreated",
