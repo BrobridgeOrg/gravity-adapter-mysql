@@ -1,0 +1,66 @@
+name: Docker Image CI
+
+on:
+  push:
+    #tags: [ '*' ]
+    #branches: [ 'main' ]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}      
+
+jobs:
+  build-and-push-image:
+    runs-on: ubuntu-latest
+    outputs:
+      tags: ${{ steps.meta.outputs.tags }}
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up SSH for private repositories
+      uses: webfactory/ssh-agent@v0.5.4
+      with:
+        ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+    - name: Log in to the Container registry
+      uses: docker/login-action@65b78e6e13532edd9afa3aa52ac7964289d1a9c1
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Extract metadata (tags, labels) for Docker
+      id: meta
+      uses: docker/metadata-action@v5.5.1
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          #type=ref,event=tag
+          type=sha,prefix=
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v6.5.0
+      with:
+        context: .
+        file: ./build/docker/Dockerfile
+        build-args: |
+          AES_KEY=${{ secrets.AES_KEY }}
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        ssh: default
+
+#  notification-discord:
+#    runs-on: ubuntu-latest
+#    needs: build-and-push-image
+#    steps:
+#    - name: Discord notification
+#      env:
+#        DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+#      uses: Ilshidur/action-discord@master
+#      with:
+#        args: |
+#          The project {{ EVENT_PAYLOAD.repository.full_name }} has been built.
+#
+#          Image:
+#          **${{ needs.build-and-push-image.outputs.tags }}**
