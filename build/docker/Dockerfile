@@ -11,6 +11,7 @@ RUN go build -ldflags "-X git.brobridge.com/gravity/gravity-adapter-mysql/pkg/ad
 
 RUN mkdir -p -m 0700 ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
 RUN git config --global url."git@github.com:BrobridgeOrg/pwd-encrypt".insteadOf "https://github.com/BrobridgeOrg/pwd-encrypt"
+
 RUN --mount=type=ssh GOPRIVATE=github.com/BrobridgeOrg/pwd-encrypt go install -ldflags "-X main.aesKey=$AES_KEY" github.com/BrobridgeOrg/pwd-encrypt@latest
 
 FROM alpine:3.19.2
@@ -19,7 +20,7 @@ WORKDIR /
 RUN apk add --update build-base tzdata mysql-client && apk upgrade --available
 
 COPY --from=builder /gravity-adapter-mysql /gravity-adapter-mysql
-COPY --from=builder /pwd-encrypt /pwd_encrypt
+COPY --from=builder /go/bin/pwd-encrypt /pwd_encrypt
 COPY ./configs /configs
 COPY ./settings/ /settings/
 COPY ./build/docker/startup.sh /startup.sh
