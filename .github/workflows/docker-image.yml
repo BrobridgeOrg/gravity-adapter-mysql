@@ -48,7 +48,8 @@ jobs:
           AES_KEY=${{ secrets.AES_KEY }}
         push: true
         tags: ${{ steps.meta.outputs.tags }}
-        ssh: default
+        ssh: |
+          default=${{ env.SSH_AUTH_SOCK }}
 
 #  notification-discord:
 #    runs-on: ubuntu-latest
