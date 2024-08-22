@@ -46,7 +46,7 @@ jobs:
         tags: |
           type=ref,event=tag
           type=raw,value=${{ env.LATEST_TAG }}-{{date 'YYYYMMDD'}}
-          latest
+          type=raw,value=latest,enable=${{ github.event_name == 'schedule' }}
           #type=sha,prefix=
 
     - name: Build and push Docker image
