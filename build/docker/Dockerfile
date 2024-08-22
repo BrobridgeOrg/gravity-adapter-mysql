@@ -25,7 +25,7 @@ COPY ./build/docker/startup.sh /startup.sh
 RUN mkdir /statestore && \
         chown -R 1001:0  /settings /configs /statestore /gravity-adapter-mysql /pwd_encrypt /startup.sh && \
         chmod 777 /settings/sources.json /configs/config.toml  && \
-        chmod -R g+rwX /statestore
+        chmod -R g+rwX /statestore /settings /configs
 
 USER 1001
 ENV TZ="Asia/Taipei"
