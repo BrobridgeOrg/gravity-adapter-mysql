@@ -5,7 +5,7 @@ ARG AES_KEY="********************************"
 WORKDIR /
 COPY . .
 
-RUN apk add --update build-base git openssh && apk upgrade --available
+RUN apk add --update build-base && apk upgrade --available
 
 RUN go build -ldflags "-X git.brobridge.com/gravity/gravity-adapter-mysql/pkg/adapter/service.aesKey=$AES_KEY" -o /gravity-adapter-mysql ./cmd/gravity-adapter-mysql/gravity-adapter-mysql.go
 
@@ -14,7 +14,7 @@ RUN go install -ldflags "-X main.aesKey=$AES_KEY" github.com/BrobridgeOrg/pwd-en
 FROM alpine:3.19.2
 WORKDIR /
 
-RUN apk add --update build-base tzdata mysql-client && apk upgrade --available
+RUN apk add --update tzdata mysql-client && apk upgrade --available
 
 COPY --from=builder /gravity-adapter-mysql /gravity-adapter-mysql
 COPY --from=builder /go/bin/pwd-encrypt /pwd_encrypt
