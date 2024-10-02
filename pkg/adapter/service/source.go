@@ -260,7 +260,15 @@ func (source *Source) eventReceiver() {
 	for {
 		select {
 		case msg := <-source.incoming:
-			source.parser.Push(msg)
+			for {
+				err := source.parser.Push(msg)
+				if err != nil {
+					log.Warn(err, ", retry ...")
+					time.Sleep(time.Second)
+					continue
+				}
+				break
+			}
 		}
 	}
 }

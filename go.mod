@@ -7,7 +7,7 @@ toolchain go1.21.4
 require (
 	github.com/BrobridgeOrg/broton v0.0.9
 	github.com/BrobridgeOrg/gravity-sdk/v2 v2.0.8
-	github.com/cfsghost/parallel-chunked-flow v0.0.6
+	github.com/cfsghost/parallel-chunked-flow v0.0.7
 	github.com/go-mysql-org/go-mysql v1.8.0
 	github.com/go-sql-driver/mysql v1.8.1
 	github.com/google/uuid v1.6.0
