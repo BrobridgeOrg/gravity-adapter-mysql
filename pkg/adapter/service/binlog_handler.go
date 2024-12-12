@@ -54,28 +54,34 @@ func (h *binlogHandler) OnRow(e *canal.RowsEvent) error {
 	// prepare Before/After Value
 	beforeValue := make(map[string]interface{})
 	afterValue := make(map[string]interface{})
-	result := CDCEvent{}
+	result := cdcEventPool.Get().(*CDCEvent)
 
 	for i, row := range e.Rows {
 
 		if e.Header == nil {
-			result = CDCEvent{}
+			*result = CDCEvent{}
 			for seq, rowData := range row {
 				afterValue[columns[seq]] = rowData
 			}
 
-			result = CDCEvent{
-				Operation: SnapshotOperation,
-				Table:     e.Table.Name,
-				After:     afterValue,
-				Before:    beforeValue,
-			}
+			/*
+				result = CDCEvent{
+					Operation: SnapshotOperation,
+					Table:     e.Table.Name,
+					After:     afterValue,
+					Before:    beforeValue,
+				}
+			*/
+			result.Operation = SnapshotOperation
+			result.Table = e.Table.Name
+			result.After = afterValue
+			result.Before = beforeValue
 
 			pos, _ := h.canal.GetMasterPos()
 			result.PosName = pos.Name
 			result.Pos = pos.Pos
 			result.EventPKs = h.joinPKs(e, row)
-			h.fn(&result)
+			h.fn(result)
 
 			timer := time.NewTimer(50 * time.Microsecond)
 			<-timer.C
@@ -86,58 +92,83 @@ func (h *binlogHandler) OnRow(e *canal.RowsEvent) error {
 		// Prepare CDC event
 		switch e.Action {
 		case canal.DeleteAction:
-			result = CDCEvent{}
+			*result = CDCEvent{}
 			for seq, rowData := range row {
 				beforeValue[columns[seq]] = h.convertValue(rowData)
 			}
-			result = CDCEvent{
-				Operation: DeleteOperation,
-				Table:     e.Table.Name,
-				After:     afterValue,
-				Before:    beforeValue,
-			}
+			/*
+				result = CDCEvent{
+					Operation: DeleteOperation,
+					Table:     e.Table.Name,
+					After:     afterValue,
+					Before:    beforeValue,
+				}
+			*/
+			result.Operation = DeleteOperation
+			result.Table = e.Table.Name
+			result.After = afterValue
+			result.Before = beforeValue
 
 			break
 
 		case canal.UpdateAction:
 			if i%2 == 0 {
-				result = CDCEvent{}
+				//	result = CDCEvent{}
+				*result = CDCEvent{}
 				for seq, rowData := range row {
 					beforeValue[columns[seq]] = h.convertValue(rowData)
 				}
-				result = CDCEvent{
-					Operation: UpdateOperation,
-					Table:     e.Table.Name,
-					Before:    beforeValue,
-				}
+				/*
+					result = CDCEvent{
+						Operation: UpdateOperation,
+						Table:     e.Table.Name,
+						Before:    beforeValue,
+					}
+				*/
+				result.Operation = UpdateOperation
+				result.Table = e.Table.Name
+				result.Before = beforeValue
 				continue
 			} else if i%2 != 0 {
 				for seq, rowData := range row {
 					afterValue[columns[seq]] = h.convertValue(rowData)
 				}
 
-				result = CDCEvent{
-					Operation: UpdateOperation,
-					Table:     e.Table.Name,
-					Before:    beforeValue,
-					After:     afterValue,
-				}
+				/*
+					result = CDCEvent{
+						Operation: UpdateOperation,
+						Table:     e.Table.Name,
+						Before:    beforeValue,
+						After:     afterValue,
+					}
+				*/
+				result.Operation = UpdateOperation
+				result.Table = e.Table.Name
+				result.After = afterValue
+				result.Before = beforeValue
 			}
 
 			break
 
 		case canal.InsertAction:
-			result = CDCEvent{}
+			//result = CDCEvent{}
+			*result = CDCEvent{}
 			for seq, rowData := range row {
 				afterValue[columns[seq]] = h.convertValue(rowData)
 			}
 
-			result = CDCEvent{
-				Operation: InsertOperation,
-				Table:     e.Table.Name,
-				After:     afterValue,
-				Before:    beforeValue,
-			}
+			/*
+				result = CDCEvent{
+					Operation: InsertOperation,
+					Table:     e.Table.Name,
+					After:     afterValue,
+					Before:    beforeValue,
+				}
+			*/
+			result.Operation = InsertOperation
+			result.Table = e.Table.Name
+			result.After = afterValue
+			result.Before = beforeValue
 
 			break
 		}
@@ -146,7 +177,7 @@ func (h *binlogHandler) OnRow(e *canal.RowsEvent) error {
 		result.PosName = pos.Name
 		result.Pos = pos.Pos
 		result.EventPKs = h.joinPKs(e, row)
-		h.fn(&result)
+		h.fn(result)
 
 	}
 

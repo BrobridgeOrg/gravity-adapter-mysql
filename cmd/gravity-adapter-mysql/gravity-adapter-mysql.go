@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
-	"runtime"
+	//"runtime"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -42,7 +42,7 @@ func init() {
 		log.Warn("No configuration file was loaded")
 	}
 
-	runtime.GOMAXPROCS(8)
+	//runtime.GOMAXPROCS(8)
 	/*
 		return
 		go func() {

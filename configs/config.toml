@@ -6,6 +6,7 @@ pingInterval = 10
 maxPingsOutstanding = 3
 maxReconnects = -1
 accessToken = ""
+publishBatchSize = 1000
 
 [source]
 config = "./settings/sources.json"

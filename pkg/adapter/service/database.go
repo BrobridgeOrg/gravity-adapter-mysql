@@ -2,6 +2,7 @@ package adapter
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/go-mysql-org/go-mysql/canal"
@@ -13,6 +14,12 @@ import (
 
 	log "github.com/sirupsen/logrus"
 )
+
+var eventPool = sync.Pool{
+	New: func() interface{} {
+		return make(map[string]interface{})
+	},
+}
 
 type DatabaseInfo struct {
 	Host     string `json:"host"`
@@ -198,7 +205,7 @@ func (database *Database) DoInitialLoad(sourceName string, tables []string, fn f
 		defer rows.Close()
 		for rows.Next() {
 			// parse data
-			event := make(map[string]interface{}, 0)
+			event := eventPool.Get().(map[string]interface{})
 			err := rows.MapScan(event)
 			if err != nil {
 				log.Error("mapScan: ", err)
@@ -213,6 +220,7 @@ func (database *Database) DoInitialLoad(sourceName string, tables []string, fn f
 			e.Pos = i
 
 			fn(e)
+			eventPool.Put(event)
 
 		}
 		if err := rows.Err(); err != nil {

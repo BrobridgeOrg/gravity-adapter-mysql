@@ -1,5 +1,9 @@
 package adapter
 
+import (
+	"sync"
+)
+
 type OperationType int8
 
 const (
@@ -8,6 +12,12 @@ const (
 	DeleteOperation
 	SnapshotOperation
 )
+
+var cdcEventPool = sync.Pool{
+	New: func() interface{} {
+		return &CDCEvent{}
+	},
+}
 
 type CDCEvent struct {
 	Pos       uint32
@@ -39,11 +49,18 @@ func (database *Database) processSnapshotEvent(tableName string, eventPayload ma
 		afterValue[key] = database.convertValue(value)
 	}
 
-	result := CDCEvent{
-		Operation: SnapshotOperation,
-		Table:     tableName,
-		After:     afterValue,
-	}
-	return &result
+	/*
+		result := CDCEvent{
+			Operation: SnapshotOperation,
+			Table:     tableName,
+			After:     afterValue,
+		}
+		return &result
+	*/
+	result := cdcEventPool.Get().(*CDCEvent)
+	result.Operation = SnapshotOperation
+	result.Table = tableName
+	result.After = afterValue
+	return result
 
 }
