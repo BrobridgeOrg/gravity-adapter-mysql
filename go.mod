@@ -16,6 +16,7 @@ require (
 	github.com/nats-io/nats.go v1.37.0
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/viper v1.19.0
+	golang.org/x/time v0.5.0
 )
 
 require (
