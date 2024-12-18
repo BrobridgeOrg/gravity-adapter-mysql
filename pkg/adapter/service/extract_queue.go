@@ -61,6 +61,7 @@ func (database *Database) processSnapshotEvent(tableName string, eventPayload ma
 	result.Operation = SnapshotOperation
 	result.Table = tableName
 	result.After = afterValue
+	result.Before = nil
 	return result
 
 }

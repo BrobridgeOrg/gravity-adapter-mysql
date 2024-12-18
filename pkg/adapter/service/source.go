@@ -68,7 +68,7 @@ var requestPool = sync.Pool{
 
 var metaPool = sync.Pool{
 	New: func() interface{} {
-		return make(map[string]string)
+		return make(map[string]string, 1)
 	},
 }
 

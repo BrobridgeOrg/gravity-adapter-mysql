@@ -253,6 +253,7 @@ func (database *Database) StartCDC(tables []string, initialLoad bool, fn func(*C
 		//database.DoInitialLoad(sourceName, tables, fn, initialLoadBatchSize, interval)
 		database.DoInitialLoad(database.source.name, tables, fn)
 	}
+	database.db.Close()
 
 	go database.WatchEvents(tables, initialLoad, fn)
 

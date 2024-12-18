@@ -52,14 +52,14 @@ func (h *binlogHandler) OnRow(e *canal.RowsEvent) error {
 	}
 
 	// prepare Before/After Value
-	beforeValue := make(map[string]interface{})
-	afterValue := make(map[string]interface{})
-	result := cdcEventPool.Get().(*CDCEvent)
+	updateEvent := make(map[string]*CDCEvent, 0)
 
 	for i, row := range e.Rows {
 
+		pos, _ := h.canal.GetMasterPos()
 		if e.Header == nil {
-			*result = CDCEvent{}
+			afterValue := make(map[string]interface{}, len(row))
+			result := cdcEventPool.Get().(*CDCEvent)
 			for seq, rowData := range row {
 				afterValue[columns[seq]] = rowData
 			}
@@ -75,9 +75,8 @@ func (h *binlogHandler) OnRow(e *canal.RowsEvent) error {
 			result.Operation = SnapshotOperation
 			result.Table = e.Table.Name
 			result.After = afterValue
-			result.Before = beforeValue
+			result.Before = nil
 
-			pos, _ := h.canal.GetMasterPos()
 			result.PosName = pos.Name
 			result.Pos = pos.Pos
 			result.EventPKs = h.joinPKs(e, row)
@@ -92,7 +91,8 @@ func (h *binlogHandler) OnRow(e *canal.RowsEvent) error {
 		// Prepare CDC event
 		switch e.Action {
 		case canal.DeleteAction:
-			*result = CDCEvent{}
+			beforeValue := make(map[string]interface{}, len(row))
+			result := cdcEventPool.Get().(*CDCEvent)
 			for seq, rowData := range row {
 				beforeValue[columns[seq]] = h.convertValue(rowData)
 			}
@@ -106,15 +106,20 @@ func (h *binlogHandler) OnRow(e *canal.RowsEvent) error {
 			*/
 			result.Operation = DeleteOperation
 			result.Table = e.Table.Name
-			result.After = afterValue
+			result.After = nil
 			result.Before = beforeValue
 
+			result.PosName = pos.Name
+			result.Pos = pos.Pos
+			result.EventPKs = h.joinPKs(e, row)
+			h.fn(result)
 			break
 
 		case canal.UpdateAction:
+			updateKey := fmt.Sprintf("%s-%d", pos.Name, pos.Pos)
 			if i%2 == 0 {
-				//	result = CDCEvent{}
-				*result = CDCEvent{}
+				beforeValue := make(map[string]interface{}, len(row))
+				result := cdcEventPool.Get().(*CDCEvent)
 				for seq, rowData := range row {
 					beforeValue[columns[seq]] = h.convertValue(rowData)
 				}
@@ -128,8 +133,11 @@ func (h *binlogHandler) OnRow(e *canal.RowsEvent) error {
 				result.Operation = UpdateOperation
 				result.Table = e.Table.Name
 				result.Before = beforeValue
+				updateEvent[updateKey] = result
 				continue
 			} else if i%2 != 0 {
+				afterValue := make(map[string]interface{}, len(row))
+				result := updateEvent[updateKey]
 				for seq, rowData := range row {
 					afterValue[columns[seq]] = h.convertValue(rowData)
 				}
@@ -145,14 +153,18 @@ func (h *binlogHandler) OnRow(e *canal.RowsEvent) error {
 				result.Operation = UpdateOperation
 				result.Table = e.Table.Name
 				result.After = afterValue
-				result.Before = beforeValue
+				result.PosName = pos.Name
+				result.Pos = pos.Pos
+				result.EventPKs = h.joinPKs(e, row)
+				h.fn(result)
+				delete(updateEvent, updateKey)
 			}
 
 			break
 
 		case canal.InsertAction:
-			//result = CDCEvent{}
-			*result = CDCEvent{}
+			afterValue := make(map[string]interface{}, len(row))
+			result := cdcEventPool.Get().(*CDCEvent)
 			for seq, rowData := range row {
 				afterValue[columns[seq]] = h.convertValue(rowData)
 			}
@@ -168,16 +180,14 @@ func (h *binlogHandler) OnRow(e *canal.RowsEvent) error {
 			result.Operation = InsertOperation
 			result.Table = e.Table.Name
 			result.After = afterValue
-			result.Before = beforeValue
+			result.Before = nil
 
+			result.PosName = pos.Name
+			result.Pos = pos.Pos
+			result.EventPKs = h.joinPKs(e, row)
+			h.fn(result)
 			break
 		}
-
-		pos, _ := h.canal.GetMasterPos()
-		result.PosName = pos.Name
-		result.Pos = pos.Pos
-		result.EventPKs = h.joinPKs(e, row)
-		h.fn(result)
 
 	}
 
